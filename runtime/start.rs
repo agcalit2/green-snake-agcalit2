@@ -81,8 +81,9 @@ pub unsafe extern "C" fn snek_try_gc(
     // eprintln!("new heap ptr {:p}, space needed {:p}, max {:p}", new_heap_ptr, new_heap_ptr.offset(-count), HEAP_END);
     if new_heap_ptr.offset(count) as u64 >= HEAP_END as u64 {
         eprintln!("out of memory");
+        std::process::exit(ErrCode::OutOfMemory as i32)
     }
-    std::process::exit(ErrCode::OutOfMemory as i32)
+    new_heap_ptr
 }
 
 /// This function should trigger garbage collection and return the updated heap pointer (i.e., the new

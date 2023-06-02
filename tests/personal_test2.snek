@@ -1,0 +1,6 @@
+(let ((x (vec 1 2 3 4))
+      (y (vec 5 6 7)))
+     (block
+        (set! y nil)
+        (let ((z (vec 11 12 13 14))) (+ (vec-get x 1) (vec-get z 2)))
+    ))

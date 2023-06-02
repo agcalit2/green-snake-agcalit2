@@ -33,6 +33,13 @@ success_tests! {
         name: personal_test1,
         file: "personal_test1.snek",
         expected: "[false, true, 17]\n[3, 4]\n[3, 4]"
+    },
+    {
+        name: personal_test2_succ,
+        file: "personal_test2.snek",
+        input: "false",
+        heap_size: 13,
+        expected: "15"
     }
 }
 
@@ -49,6 +56,13 @@ runtime_error_tests! {
         file: "vec_get.snek",
         input: "5",
         expected: "",
+    },
+    {
+        name: personal_test2_fail,
+        file: "personal_test2.snek",
+        input: "false",
+        heap_size: 12,
+        expected: "out of memory"
     }
 }
 
