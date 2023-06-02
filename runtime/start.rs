@@ -166,9 +166,9 @@ pub unsafe extern "C" fn snek_gc(
         if marked == 1 {
             // Set the marked vector to the move_to address
             *HEAP_START.add(offset) = (HEAP_START as u64) + (move_to as u64) * 8;
-            reference_map.insert((HEAP_START.offset(offset as isize) as u64) + 1, (HEAP_START as u64) + (move_to as u64) * 8 + 1);
+            reference_map.insert((HEAP_START.offset(offset as isize) as u64) + 1, (HEAP_START.offset(move_to as isize) as u64) + 1);
             // *markPtr = move_to as u64;
-            // eprintln!("Marked Vector! Moving to {} slot of heap array...", move_to);
+            // eprintln!("\nMarked Vector! Moving to {} slot of heap array...", move_to);
             move_to += size + 2;
         } else {
             // eprintln!("Unmarked Vector! Will be deleted...");
@@ -180,7 +180,7 @@ pub unsafe extern "C" fn snek_gc(
     // Printing out the reference map
     // eprintln!("\nReference Map");
     // reference_map.iter().for_each(|(old, new)| {
-        // eprintln!("Key: {}, Value: {}", old, new);
+    //     eprintln!("Old: {:p}, New: {:p}", old, new);
     // });
     // eprintln!();
 

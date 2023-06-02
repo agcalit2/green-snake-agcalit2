@@ -25,6 +25,12 @@ success_tests! {
         expected: "1\n2\n3\n4\n5\n5\n4\n3\n2\n1\nnil"
     },
     {
+        name: merge_sort,
+        file: "merge_sort.snek",
+        input: "1000",
+        expected: "89"
+    },
+    {
         name: forest_flame_example,
         file: "example.snek",
         expected: "[nil, [1, 2], nil]\nnil\nnil"
@@ -38,7 +44,7 @@ success_tests! {
         name: personal_test2_succ,
         file: "personal_test2.snek",
         input: "false",
-        heap_size: 13,
+        heap_size: 12,
         expected: "15"
     }
 }
@@ -61,8 +67,15 @@ runtime_error_tests! {
         name: personal_test2_fail,
         file: "personal_test2.snek",
         input: "false",
-        heap_size: 12,
+        heap_size: 11,
         expected: "out of memory"
+    },
+    {
+        name: insertion_sort_oom,
+        file: "insertion_sort.snek",
+        input: "1000",
+        heap_size: 1001,
+        expected: "out of memory",
     }
 }
 
