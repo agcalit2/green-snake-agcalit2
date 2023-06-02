@@ -299,7 +299,7 @@ impl Session {
                     Instr::Sar(BinArgs::ToReg(Rdi, Arg32::Imm(1))),
                     Instr::Cmp(BinArgs::ToReg(Rdi, Arg32::Imm(0))),
                     Instr::Jl(INVALID_SIZE.to_string()),
-                    Instr::Lea(Rax, mref![HEAP_PTR + 8 * Rdi + 16]),
+                    Instr::Lea(Rax, mref![HEAP_PTR + 8 * Rdi + 16; NONE]),
                     Instr::Cmp(BinArgs::ToReg(Rax, Arg32::Reg(HEAP_END))),
                     Instr::Jle(alloc_finish_lbl.clone()),
                     // Call try_gc to ensure we can allocate `size + 2` quad words
@@ -320,14 +320,14 @@ impl Session {
                     // Write size in HEAP_PTR + 8
                     Instr::Mov(MovArgs::ToMem(mref!(HEAP_PTR + 8), Reg32::Reg(Rsi))),
                     // Fill vector using `rep stosq` (%rdi = ptr, %rcx = count, %rax = val)
-                    Instr::Lea(Rdi, mref!(HEAP_PTR + 16)),
+                    Instr::Lea(Rdi, mref!(HEAP_PTR + 16; NONE)),
                     Instr::Mov(MovArgs::ToReg(Rcx, Arg64::Reg(Rsi))),
                     Instr::Mov(MovArgs::ToReg(Rax, Arg64::Mem(elem_mem))),
                     Instr::Rep(Stosq),
                     // Add tag to heap ptr and store it in %rax as the result of the expression
-                    Instr::Lea(Rax, mref!(HEAP_PTR + 1)),
+                    Instr::Lea(Rax, mref!(HEAP_PTR + 1; NONE)),
                     // Bump heap ptr
-                    Instr::Lea(HEAP_PTR, mref!(HEAP_PTR + 8 * Rsi + 16)),
+                    Instr::Lea(HEAP_PTR, mref!(HEAP_PTR + 8 * Rsi + 16; NONE)),
                 ]);
                 self.memset(cx.si, 2, Reg32::Imm(MEM_SET_VAL));
                 self.move_to(dst, Arg64::Reg(Rax));
@@ -345,7 +345,7 @@ impl Session {
                 }
 
                 self.emit_instrs([
-                    Instr::Lea(Rax, mref![HEAP_PTR + %(8 * (size + 2))]),
+                    Instr::Lea(Rax, mref![HEAP_PTR + %(8 * (size + 2)); NONE]),
                     Instr::Cmp(BinArgs::ToReg(Rax, Arg32::Reg(HEAP_END))),
                     Instr::Jle(vec_alloc_finish_lbl.clone()),
                     // Call try_gc to ensure we can allocate `size + 2` quad words
@@ -373,9 +373,9 @@ impl Session {
 
                 self.emit_instrs([
                     // Add tag to heap ptr and store it in %rax as the result of the expression
-                    Instr::Lea(Rax, mref!(HEAP_PTR + 1)),
+                    Instr::Lea(Rax, mref!(HEAP_PTR + 1; NONE)),
                     // Bump heap ptr
-                    Instr::Lea(HEAP_PTR, mref!(HEAP_PTR + %(8 * (size + 2)))),
+                    Instr::Lea(HEAP_PTR, mref!(HEAP_PTR + %(8 * (size + 2)); NONE)),
                 ]);
                 self.memset(cx.si, elems.len() as u32, Reg32::Imm(MEM_SET_VAL));
                 self.move_to(dst, Arg64::Reg(Rax));

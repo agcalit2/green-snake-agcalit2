@@ -24,6 +24,16 @@ success_tests! {
         file: "linked_list_manipulations.snek",
         expected: "1\n2\n3\n4\n5\n5\n4\n3\n2\n1\nnil"
     },
+    {
+        name: forest_flame_example,
+        file: "example.snek",
+        expected: "[nil, [1, 2], nil]\nnil\nnil"
+    },
+    {
+        name: personal_test1,
+        file: "personal_test1.snek",
+        expected: "[false, true, 17]\n[3, 4]\n[3, 4]"
+    }
 }
 
 runtime_error_tests! {

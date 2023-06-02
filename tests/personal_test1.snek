@@ -1,0 +1,7 @@
+(let ((x (vec false true 17))
+      (y (vec 1 2)))
+     (block
+        (set! y (vec 3 4))
+        (gc)
+        (print x)
+        (print y)))

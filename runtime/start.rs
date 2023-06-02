@@ -1,4 +1,4 @@
-use std::{collections::HashSet, env};
+use std::{collections::HashSet, collections::HashMap, env};
 
 type SnekVal = u64;
 
@@ -15,8 +15,8 @@ pub enum ErrCode {
 const TRUE: u64 = 7;
 const FALSE: u64 = 3;
 
-static mut HEAP_START: *const u64 = std::ptr::null();
-static mut HEAP_END: *const u64 = std::ptr::null();
+static mut HEAP_START: *mut u64 = std::ptr::null_mut();
+static mut HEAP_END: *mut u64 = std::ptr::null_mut();
 
 #[link(name = "our_code")]
 extern "C" {
@@ -90,7 +90,173 @@ pub unsafe extern "C" fn snek_gc(
     curr_rbp: *const u64,
     curr_rsp: *const u64,
 ) -> *const u64 {
-    heap_ptr
+
+    // // // // //
+    // MARKING  //
+    // // // // //
+
+    // Iterate over the entire heap's vectors and mark any vectors that are pointed towards
+    let total_offset: usize = (heap_ptr as usize - HEAP_START as usize) / 8;
+    let mut offset: usize = 0;
+    while offset < total_offset {
+        let size = HEAP_START.add(1 + offset).read() as usize;
+        for i in 0..size {
+            let elem = HEAP_START.add(2 + i + offset).read();
+            if elem != TRUE && elem != FALSE && elem != 1 && elem & 1 == 1 {
+                // This is a vector. Will mark its location
+                let mut vec_addr = (elem - 1) as *mut u64;
+                *vec_addr = 1
+            }
+        }
+        offset += size + 2;
+    }
+
+    // Iterate over the stack and mark any vectors that are pointed towards
+    let mut rsp = curr_rsp;
+    let mut rbp = curr_rbp;
+    loop {
+        // Iterating over local variables in this stack frame
+        let mut ptr = rbp;
+        ptr.sub(1);
+        while ptr >= rsp {
+            let val = *ptr;
+            // Check if value is a vector then marking if it is
+            if val != TRUE && val != FALSE && val != 1 && val & 1 == 1 {
+                // This is a vector. Will mark its location
+                let mut vec_addr = (val - 1) as *mut u64;
+                *vec_addr = 1
+            }
+            ptr = ptr.sub(1);
+        }
+
+        // Checking if stack_base was reached
+        if rbp == stack_base {
+            break;
+        }
+
+        // resetting the rsp and rbp to the next stack frame
+        let prev_rbp = *rbp;
+        rsp = rbp.add(2);
+        rbp = prev_rbp as *mut u64;
+    }
+    
+    // Check registers for any vectors and marking them
+    // idk if I actually need to do this
+
+    // // // // // //
+    // FORWARDING  //
+    // // // // // //
+
+    // initializing move_to
+    let mut move_to: usize = 0;
+
+    // iterating over the vectors then if it's marked, setting it to move_to. Also keeping track of reference update mapping
+    let total_offset: usize = (heap_ptr as usize - HEAP_START as usize) / 8;
+    let mut offset: usize = 0;
+    let mut reference_map: HashMap<u64, u64> = HashMap::new();
+    while offset < total_offset {
+        // eprintln!("Offset Difference {}, {}", offset, total_offset);
+        let size = HEAP_START.add(1 + offset).read() as usize;
+        let marked = HEAP_START.add(offset).read() as u64;
+        if marked == 1 {
+            // Set the marked vector to the move_to address
+            *HEAP_START.add(offset) = (HEAP_START as u64) + (move_to as u64) * 8;
+            reference_map.insert((HEAP_START.offset(offset as isize) as u64) + 1, (HEAP_START as u64) + (move_to as u64) * 8 + 1);
+            // *markPtr = move_to as u64;
+            // eprintln!("Marked Vector! Moving to {} slot of heap array...", move_to);
+            move_to += size + 2;
+        } else {
+            // eprintln!("Unmarked Vector! Will be deleted...");
+        }
+        
+        offset += size + 2;
+    }
+
+    // Printing out the reference map
+    // eprintln!("\nReference Map");
+    // reference_map.iter().for_each(|(old, new)| {
+        // eprintln!("Key: {}, Value: {}", old, new);
+    // });
+    // eprintln!();
+
+    // // // // // // //  //
+    // REFERENCE UPDATING //
+    // // // // // // //  //
+
+    // Updating any vectors referenced in the heap
+    let total_offset: usize = (heap_ptr as usize - HEAP_START as usize) / 8;
+    let mut offset: usize = 0;
+    while offset < total_offset {
+        let size = HEAP_START.add(1 + offset).read() as usize;
+        for i in 0..size {
+            let elem = HEAP_START.add(2 + i + offset).read();
+            if elem != TRUE && elem != FALSE && elem != 1 && elem & 1 == 1 {
+                // This is a vector. Will update its reference
+                // eprintln!("Updating Heap Vector Reference {} to {}", elem, reference_map[&elem]);
+                *HEAP_START.add(2 + i + offset) = reference_map[&elem];
+                let new_elem = HEAP_START.add(2 + i + offset).read();
+            }
+        }
+        offset += size + 2;
+    }
+
+    // Updating any vectors referenced in the stack
+    let mut rsp = curr_rsp;
+    let mut rbp = curr_rbp;
+    loop {
+        // Iterating over local variables in this stack frame
+        let mut ptr = rbp as *mut u64;
+        ptr.sub(1);
+        while ptr >= rsp as *mut u64 {
+            let val = *ptr;
+            // Check if value is a vector then marking if it is
+            if val != TRUE && val != FALSE && val != 1 && val & 1 == 1 {
+                // This is a vector. Will update its reference
+                // eprintln!("Updating Stack Vector Reference {} to {}", val, reference_map[&val]);
+                *ptr = reference_map[&val];
+            }
+            ptr = ptr.sub(1);
+        }
+
+        // Checking if stack_base was reached
+        if rbp == stack_base {
+            break;
+        }
+
+        // resetting the rsp and rbp to the next stack frame
+        let prev_rbp = *rbp;
+        rsp = rbp.add(2);
+        rbp = prev_rbp as *mut u64;
+    }
+
+    // // // // // // // // //
+    // SHIFTING ALL VECTORS //
+    // // // // // // // // //
+
+    // Iterating over heap and starting to shift over values
+    let total_offset: usize = (heap_ptr as usize - HEAP_START as usize) / 8;
+    let mut offset: usize = 0;
+    let mut removed = 0;
+    while offset < total_offset {
+        let mark = HEAP_START.add(offset).read() as u64;
+        let size = HEAP_START.add(1 + offset).read() as usize;
+        if mark != 0 {
+            // eprintln!("Need to shift values from {:p} to {:p}", HEAP_START.offset(offset as isize), mark as *mut u64);
+            let new_addr = mark as *mut u64;
+            for i in 0..size+2 {
+                *new_addr.offset(i as isize) = HEAP_START.offset(offset as isize + i as isize).read() as u64;
+            }
+        } else {
+            // eprintln!("Don't need to shift values");
+            removed += size + 2;
+        }
+        offset += size + 2;
+    }
+    // eprintln!("Removed {} words", removed);
+    let new_heap_ptr = heap_ptr.offset(-(removed as isize));
+    // eprintln!("Heap Pointer Switching From {:p} to {:p}", heap_ptr, new_heap_ptr);
+
+    new_heap_ptr
 }
 
 /// A helper function that can be called with the `(snek-printstack)` snek function. It prints the stack

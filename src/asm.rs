@@ -26,6 +26,13 @@ pub enum Reg {
 pub struct MemRef {
     pub reg: Reg,
     pub offset: Offset,
+    pub size: Size,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Size {
+    QWORD,
+    NONE,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -40,7 +47,7 @@ pub enum Offset {
 
 #[macro_export]
 macro_rules! mref {
-    ($reg:ident + $factor:literal * $idx:ident + $constant:literal) => {{
+    ($reg:ident + $factor:literal * $idx:ident + $constant:literal $(; $size:ident)?) => {{
         MemRef {
             reg: $reg,
             offset: Offset::Computed {
@@ -48,24 +55,38 @@ macro_rules! mref {
                 factor: $factor,
                 constant: $constant,
             },
+            size: $crate::size!($($size)?)
+            }
         }
-    }};
-    ($reg:ident + %($offset:expr)) => {{
+    };
+    ($reg:ident + %($offset:expr) $(; $size:ident)?) => {{
         let offset: i32 = $offset.try_into().unwrap();
         MemRef {
             reg: $reg,
             offset: Offset::Constant(offset),
+            size: $crate::size!($($size)?)
         }
     }};
-    ($reg:ident - %($offset:expr)) => {{
+    ($reg:ident - %($offset:expr) $(; $size:ident)?) => {{
         let offset: i32 = $offset.try_into().unwrap();
         MemRef {
             reg: $reg,
             offset: Offset::Constant(-offset),
+            size: $crate::size!($($size)?)
         }
     }};
-    ($reg:ident + $offset:literal) => {
-        $crate::mref!($reg + %($offset))
+    ($reg:ident + $offset:literal $(;$size:ident)?) => {
+        $crate::mref!($reg + %($offset) $(;$size)?)
+    };
+}
+
+#[macro_export]
+macro_rules! size {
+    ($size:ident) => {
+        $crate::asm::Size::$size
+    };
+    () => {
+        $crate::asm::Size::QWORD
     };
 }
 
@@ -239,10 +260,18 @@ pub fn imm32_to_string(i: i32) -> String {
 
 pub fn mem_ref_to_string(m: MemRef) -> String {
     format!(
-        "QWORD [{} {}]",
+        "{}[{} {}]",
+        size_to_string(m.size),
         reg_to_string(m.reg),
         offset_to_string(m.offset)
     )
+}
+
+fn size_to_string(size: Size) -> String {
+    match size {
+        Size::QWORD => format!("QWORD "),
+        Size::NONE => format!(""),
+    }
 }
 
 fn offset_to_string(off: Offset) -> String {
