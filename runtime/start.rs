@@ -79,7 +79,7 @@ pub unsafe extern "C" fn snek_try_gc(
 ) -> *const u64 {
     let new_heap_ptr = snek_gc(heap_ptr, stack_base, curr_rbp, curr_rsp);
     // eprintln!("new heap ptr {:p}, space needed {:p}, max {:p}", new_heap_ptr, new_heap_ptr.offset(-count), HEAP_END);
-    if new_heap_ptr.offset(count) as u64 >= HEAP_END as u64 {
+    if new_heap_ptr.offset(count) as u64 > HEAP_END as u64 {
         eprintln!("out of memory");
         std::process::exit(ErrCode::OutOfMemory as i32)
     }
