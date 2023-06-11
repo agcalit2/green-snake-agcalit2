@@ -78,11 +78,12 @@ pub unsafe extern "C" fn snek_try_gc(
     curr_rsp: *const u64,
 ) -> *const u64 {
     let new_heap_ptr = snek_gc(heap_ptr, stack_base, curr_rbp, curr_rsp);
-    // eprintln!("new heap ptr {:p}, space needed {:p}, max {:p}", new_heap_ptr, new_heap_ptr.offset(-count), HEAP_END);
+    // eprintln!("new heap ptr {:p}, count {} words, new space left: {} words", new_heap_ptr, count, (HEAP_END as u64 - new_heap_ptr.offset(count) as u64) / 8);
     if new_heap_ptr.offset(count) as u64 > HEAP_END as u64 {
         eprintln!("out of memory");
         std::process::exit(ErrCode::OutOfMemory as i32)
     }
+    // snek_print_stack(stack_base, curr_rbp, curr_rsp);
     new_heap_ptr
 }
 
@@ -135,14 +136,13 @@ pub unsafe extern "C" fn snek_gc(
         }
 
         // Checking if stack_base was reached
-        if rbp == stack_base {
+        if rbp <= stack_base {
             break;
         }
 
         // resetting the rsp and rbp to the next stack frame
-        let prev_rbp = *rbp;
         rsp = rbp.add(2);
-        rbp = prev_rbp as *mut u64;
+        rbp = *rbp as *mut u64;
     }
     
     // Check registers for any vectors and marking them
@@ -180,7 +180,7 @@ pub unsafe extern "C" fn snek_gc(
     // Printing out the reference map
     // eprintln!("\nReference Map");
     // reference_map.iter().for_each(|(old, new)| {
-    //     eprintln!("Old: {:p}, New: {:p}", old, new);
+    //     eprintln!("Old: {}, New: {}", old, new);
     // });
     // eprintln!();
 
@@ -224,14 +224,13 @@ pub unsafe extern "C" fn snek_gc(
         }
 
         // Checking if stack_base was reached
-        if rbp == stack_base {
+        if rbp <= stack_base {
             break;
         }
 
         // resetting the rsp and rbp to the next stack frame
-        let prev_rbp = *rbp;
         rsp = rbp.add(2);
-        rbp = prev_rbp as *mut u64;
+        rbp = *rbp as *mut u64;
     }
 
     // // // // // // // // //
@@ -246,7 +245,7 @@ pub unsafe extern "C" fn snek_gc(
         let mark = HEAP_START.add(offset).read() as u64;
         let size = HEAP_START.add(1 + offset).read() as usize;
         if mark != 0 {
-            // eprintln!("Need to shift values from {:p} to {:p}", HEAP_START.offset(offset as isize), mark as *mut u64);
+            // eprintln!("Need to shift {} values from {:p} to {:p}", size+2, HEAP_START.offset(offset as isize), mark as *mut u64);
             let new_addr = mark as *mut u64;
             for i in 0..size+2 {
                 *new_addr.offset(i as isize) = HEAP_START.offset(offset as isize + i as isize).read() as u64;
@@ -257,9 +256,8 @@ pub unsafe extern "C" fn snek_gc(
         }
         offset += size + 2;
     }
-    // eprintln!("Removed {} words", removed);
+    // eprintln!("Removed {} words", removed as isize);
     let new_heap_ptr = heap_ptr.offset(-(removed as isize));
-    // eprintln!("Heap Pointer Switching From {:p} to {:p}", heap_ptr, new_heap_ptr);
 
     new_heap_ptr
 }
@@ -276,7 +274,7 @@ pub unsafe extern "C" fn snek_print_stack(
     println!("-----------------------------------------");
     while ptr >= curr_rsp {
         let val = *ptr;
-        println!("{ptr:?}: {:#0x}", val);
+        println!("{ptr:?}: {}", val);
         ptr = ptr.sub(1);
     }
     println!("-----------------------------------------");

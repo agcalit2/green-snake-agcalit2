@@ -46,7 +46,14 @@ success_tests! {
         input: "false",
         heap_size: 12,
         expected: "15"
-    }
+    },
+    {
+        name: insertion_sort,
+        file: "insertion_sort.snek",
+        input: "1000",
+        heap_size: 1002,
+        expected: "true",
+    },
 }
 
 runtime_error_tests! {
