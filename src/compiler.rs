@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::{
     asm::{
-        instrs_to_string, Arg32, Arg64, BinArgs, CMov, Instr, Loc, MemRef, MovArgs, Offset,
+        instrs_to_string, Arg32, Arg64, BinArgs, CMov, Instr, Loc, MemRef, MovArgs, Offset, Size,
         Reg::{self, *},
         Reg32,
         StrOp::Stosq,
@@ -96,6 +96,207 @@ impl<'a> Ctxt<'a> {
     }
 }
 
+fn tail_call_check(instrs: &Vec<Instr>, index: usize) -> bool {
+    // println!("Checking Tail Call");
+    let mut jmp_label: &str = "";
+    let index_usize = index as usize; // Convert index to usize
+    for i in index_usize..instrs.len() {
+        // Check if jump label was reached
+        let instr = &instrs[i];
+        match instr {
+            Instr::Label(label) => {
+                if jmp_label == label {
+                    jmp_label = "";
+                }
+            }
+            _ => {}
+        }
+        if jmp_label != "" {
+            // println!("jmp_label: {:?}", jmp_label);
+            continue;
+        }
+        // Process each instruction starting from the given index
+        // Perform tail call analysis here
+        // Instructions that affect the RAX register trigger a false
+        // println!("{:?}", instr);
+        match instr {
+            Instr::Jmp(label) => {
+                jmp_label = label;
+            }
+            Instr::Add(BinArgs::ToReg(Reg::Rax, _)) => {
+                // println!("Not Tail Call");
+                return false
+            }
+            Instr::Sub(BinArgs::ToReg(Reg::Rax, _)) => {
+                // println!("Not Tail Call");
+                return false
+            }
+            Instr::IMul(BinArgs::ToReg(Reg::Rax, _)) => {
+                // println!("Not Tail Call");
+                return false
+            }
+            Instr::IDiv(Reg::Rax) => {
+                // println!("Not Tail Call");
+                return false
+            }
+            Instr::Or(BinArgs::ToReg(Reg::Rax, _)) => {
+                // println!("Not Tail Call");
+                return false
+            }
+            Instr::And(BinArgs::ToReg(Reg::Rax, _)) => {
+                // println!("Not Tail Call");
+                return false
+            }
+            Instr::Xor(BinArgs::ToReg(Reg::Rax, _)) => {
+                // println!("Not Tail Call");
+                return false
+            }
+            Instr::Shr(BinArgs::ToReg(Reg::Rax, _)) => {
+                // println!("Not Tail Call");
+                return false
+            }
+            Instr::Shl(BinArgs::ToReg(Reg::Rax, _)) => {
+                // println!("Not Tail Call");
+                return false
+            }
+            Instr::Sar(BinArgs::ToReg(Reg::Rax, _)) => {
+                // println!("Not Tail Call");
+                return false
+            }
+            Instr::Mov(MovArgs::ToReg(Reg::Rax, _)) => {
+                // println!("Not Tail Call");
+                return false
+            }
+            Instr::CMov(cmov) => match cmov {
+                CMov::E(Reg::Rax, _) => {
+                    // Handle the E variant
+                    // println!("Not Tail Call");
+                    return false
+                }
+                CMov::Z(Reg::Rax, _) => {
+                    // Handle the Z variant
+                    // println!("Not Tail Call");
+                    return false
+                }
+                CMov::NZ(Reg::Rax, _) => {
+                    // Handle the NZ variant
+                    // println!("Not Tail Call");
+                    return false
+                }
+                CMov::NE(Reg::Rax, _) => {
+                    // Handle the NE variant
+                    // println!("Not Tail Call");
+                    return false
+                }
+                CMov::G(Reg::Rax, _) => {
+                    // Handle the G variant
+                    // println!("Not Tail Call");
+                    return false
+                }
+                CMov::GE(Reg::Rax, _) => {
+                    // Handle the GE variant
+                    // println!("Not Tail Call");
+                    return false
+                }
+                CMov::L(Reg::Rax, _) => {
+                    // Handle the L variant
+                    // println!("Not Tail Call");
+                    return false
+                }
+                CMov::LE(Reg::Rax, _) => {
+                    // Handle the LE variant
+                    // println!("Not Tail Call");
+                    return false
+                }
+                _ => {}
+            }
+            Instr::Ret => {
+                // println!("Tail Call!");
+                return true
+            }
+            _ => {}
+        }
+    }
+    // println!("Not Tail Call");
+    false
+}
+
+/*
+Given vector of instructions, turns the tail call at index i into a proper tail call.
+*/
+fn replace_tail_call(instrs: &Vec<Instr>, i: usize, curr_function: String, arity_map: HashMap<Symbol, usize>) {
+    let instr = &instrs[i];
+    let curr_function = curr_function.replace("snek_fun_", "");
+    let Some(arity) = arity_map.get(&Symbol::new(curr_function.clone())) else { todo!() };
+    let mut tail_call: Vec<Instr> = Vec::new();
+    match instr {
+        Instr::Call(name) => {
+            let new_function = name.replace("snek_fun_", "");
+            let base = 8 + arity * 8;
+            let Some(new_arity) = arity_map.get(&Symbol::new(new_function.clone())) else { todo!() };
+            
+            println!("\nReplacing With Tail Call: {} at index {} with {} args and parent function {} with {} args", new_function, i, new_arity, curr_function, arity);
+            for j in (i - new_arity)..i {
+                println!("{:?}", instrs[j]); // Print the instructions before i
+            }
+            
+            
+            
+            tail_call.push(Instr::Mov(MovArgs::ToReg(Reg::Rcx, Arg64::Mem(MemRef { reg: Reg::Rbp, offset: Offset::Constant(8), size: Size::QWORD }))));
+            tail_call.push(Instr::Mov(MovArgs::ToReg(Reg::Rdx, Arg64::Mem(MemRef { reg: Reg::Rbp, offset: Offset::Constant(0), size: Size::QWORD }))));
+            tail_call.push(Instr::Mov(MovArgs::ToReg(Reg::Rsp, Arg64::Mem(MemRef { reg: Reg::Rbp, offset: Offset::Constant(base.try_into().unwrap()), size: Size::QWORD }))));
+            for j in (i - new_arity)..i {
+                tail_call.push(instrs[j].clone());
+            }
+            tail_call.push(Instr::Push(Arg32::Reg(Reg::Rcx)));
+            tail_call.push(Instr::Mov(MovArgs::ToReg(Reg::Rbp, Arg64::Reg(Reg::Rdx))));
+            tail_call.push(Instr::Jmp((&name).to_string()));
+        }
+        _ => todo!()
+    }
+    println!("{:?}", instrs_to_string(&tail_call));
+}
+
+fn control_flow_analysis(arity_map: HashMap<Symbol, usize>, instrs: &Vec<Instr>) {
+    let mut current_function: Option<String> = None;
+    let mut tail_call_list: Vec<usize> = Vec::new();
+    let mut tail_call_parents: Vec<String> = Vec::new();
+    let mut index: usize = 0;
+
+    // finding the tail calls
+    for instr in instrs {
+        match instr {
+            Instr::Label(label) => {
+                if label.starts_with("snek_fun_") {
+                    current_function = Some(label.clone());
+                    println!("Current Function: {}", current_function.as_ref().unwrap());
+                }
+            }
+            Instr::Ret => {
+                current_function = None;
+                println!("Current Function: None");
+            }
+            Instr::Call(_) => {
+                if current_function.is_some() {
+                    let tail_call = tail_call_check(instrs, index);
+                    if tail_call {
+                        tail_call_list.push(index);
+                        tail_call_parents.push(current_function.as_ref().unwrap().clone());
+                    }
+                }
+            }
+            _ => {}
+        }
+        index += 1;
+    }
+
+    // replacing the tail calls with the proper format
+    for (i, j) in tail_call_list.into_iter().enumerate() {
+        replace_tail_call(instrs, j, tail_call_parents[i].clone(), arity_map.clone());
+    }
+}
+
+
 pub fn compile(prg: &Prog) -> String {
     match fun_arity_map(prg) {
         Ok(funs) => {
@@ -113,6 +314,7 @@ pub fn compile(prg: &Prog) -> String {
             ]);
             sess.compile_expr(&Ctxt::new(), Loc::Reg(Rax), &prg.main);
             sess.fun_exit(locals, &callee_saved);
+            control_flow_analysis(sess.funs, &sess.instrs);
 
             format!(
                 "
